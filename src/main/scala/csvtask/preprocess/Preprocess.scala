@@ -5,5 +5,7 @@ import akka.stream.scaladsl.Flow
 
 object Preprocess {
   def preprocess: Flow[String, Either[PriceParseFailure, PriceInfo], NotUsed] =
-    Flow[String].map(PriceInfo.fromString)
+    Flow[String].
+      filterNot(_.contains("Date,Open,High,Low,Close,Volume")).
+      map(PriceInfo.fromString)
 }
