@@ -13,6 +13,10 @@ class BaseSpec extends Specification{
 
   def testSource(data: String): Source[String, NotUsed] =
     scaladsl.Source.fromIterator(() ⇒ scala.io.Source.fromString(data).getLines())
+  def testSourceFromPath(path: String): Source[String, NotUsed] =
+    scaladsl.Source.fromIterator {() ⇒
+      scala.io.Source.fromInputStream(getClass.getClassLoader.getResourceAsStream(path), "UTF-8").getLines()
+    }
 }
 
 object TestInit {

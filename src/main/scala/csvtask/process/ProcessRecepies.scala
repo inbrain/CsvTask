@@ -9,37 +9,29 @@ import csvtask.preprocess.PriceInfo
 case class CalcFailure(msg: String) extends AFailure
 
 object ProcessRecepies {
-  def dailyPriceX: Flow[Either[AFailure, PriceInfo], Either[AFailure, BigDecimal], NotUsed] =
-    Flow[Either[AFailure, PriceInfo]].map {x ⇒
-      x.map(_.close)
-    }
-
-  def dailyReturnX: Flow[Either[AFailure, BigDecimal], Either[AFailure, BigDecimal], NotUsed] = {
-    val zero = Right((0, 0)).asInstanceOf[Either[AFailure, (BigDecimal, BigDecimal)]]
-    Flow[Either[AFailure, BigDecimal]].scan(zero){(acc, next) ⇒
-      for {
-        accVals ← acc
-        nextVal ← next
-      } yield (nextVal - accVals._2,  nextVal)
-    }.map(_.map(_._1))
-  }
 
   def dailyPrice: Flow[PriceInfo, BigDecimal, NotUsed] = Flow[PriceInfo].map(_.close)
 
   def dailyReturn: Flow[PriceInfo, BigDecimal, NotUsed] = {
-    val zero = (BigDecimal(0), BigDecimal(0))
-    dailyPrice.scan(zero) { (acc, next) ⇒
-      (next - acc._2, next)
-    }.map(_._1)
+    dailyPrice.scan(Return(None, None)) { (acc, next) ⇒
+      val calc = acc.fut.map(fut ⇒ PriceMath.dailyReturn(fut, next))
+      Return(Some(next), calc)
+    }.
+      filter(_.calc.isDefined).
+      map(_.calc.get)
   }
 
-  def mainSource(source: Source[Either[AFailure, PriceInfo], NotUsed],
-                 transFlow: Flow[PriceInfo, BigDecimal, NotUsed]):
+  /**
+    * Allows for application of a flow that is written without invalid input handligng to the source emits validated
+    * output
+    */
+  def applyFlow(source: Source[Either[AFailure, PriceInfo], NotUsed],
+                transFlow: Flow[PriceInfo, BigDecimal, NotUsed]):
   Source[Either[AFailure, BigDecimal], NotUsed] = Source.fromGraph(
     GraphDSL.create() { implicit b: GraphDSL.Builder[NotUsed] ⇒
       import GraphDSL.Implicits._
 
-      val generator = b.add(source.takeWhile(_.isRight, true))
+      val gen = b.add(source)
       val cleanser = b.add(Flow[Either[AFailure, PriceInfo]].map(_.right.get))
       val transformer = b.add(transFlow)
       val repackRight = b.add(Flow[BigDecimal].map(Right(_).asInstanceOf[Either[AFailure, BigDecimal]]))
@@ -48,11 +40,13 @@ object ProcessRecepies {
       val partition = b.add(Partition[Either[AFailure, PriceInfo]](2, (x) ⇒ if (x.isLeft) 0 else 1))
       val merge = b.add(Merge[Either[AFailure, BigDecimal]](2))
 
-      generator.out ~> partition.in
+      gen.out ~> partition.in
       partition.out(0) ~> repackLeft ~> merge.in(0)
       partition.out(1) ~> cleanser ~> transformer ~> repackRight ~> merge.in(1)
 
       SourceShape(merge.out)
     }
   )
+
+  private case class Return(fut: Option[BigDecimal], calc: Option[BigDecimal])
 }

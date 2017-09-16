@@ -2,7 +2,7 @@ package csvtask.process
 
 import akka.stream.scaladsl.Sink
 import csvtask.BaseSpec
-import csvtask.preprocess.Preprocess
+import csvtask.preprocess.{Preprocess, PriceParseFailure}
 
 import scala.concurrent.Await
 import scala.concurrent.duration._
@@ -19,11 +19,13 @@ class ProcessRecepiesSpec extends BaseSpec{
         |7-Sep-17,0,0,0,5,0""".stripMargin
 
       val preprocessedSource = testSource(data).via(Preprocess.preprocess)
-      val dailyPriceFut = ProcessRecepies.mainSource(preprocessedSource, ProcessRecepies.dailyPrice).runWith(Sink.seq)
+      val dailyPriceFut = ProcessRecepies.applyFlow(preprocessedSource, ProcessRecepies.dailyPrice).runWith(Sink.seq)
 
       val expected = List(1, 2, 3, 4, 5).map(x ⇒ Right(BigDecimal(x)))
 
       Await.result(dailyPriceFut, 10.seconds) mustEqual expected
     }
   }
+
+
 }

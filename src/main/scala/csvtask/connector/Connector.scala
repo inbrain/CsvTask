@@ -15,7 +15,7 @@ class Connector(implicit actorSystem: ActorSystem, actorMaterializer: ActorMater
     s"https://finance.google.com/finance/historical?q=NASDAQ:$ticker&output=csv"
 
   /**
-    * Here we are getting a source emmitting line by line content of csv file with pricing data
+    * Here we are getting a source emmiting line by line content of csv file with pricing data
     */
   def priceStream(ticker: String): Source[String, NotUsed] = {
     val perLineFraming = Framing.delimiter(
