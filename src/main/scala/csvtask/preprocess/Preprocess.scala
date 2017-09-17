@@ -2,7 +2,7 @@ package csvtask.preprocess
 
 import akka.NotUsed
 import akka.stream.scaladsl.Flow
-import csvtask.AFailure
+import csvtask.failure.AFailure
 
 case object ZeroPrice extends AFailure {
   val msg = "Zero price encountered"

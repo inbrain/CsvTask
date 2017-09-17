@@ -3,7 +3,7 @@ package csvtask.preprocess
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
-import csvtask.AFailure
+import csvtask.failure.AFailure
 
 import scala.util.Try
 

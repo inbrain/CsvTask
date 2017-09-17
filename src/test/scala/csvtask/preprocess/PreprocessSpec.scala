@@ -3,7 +3,8 @@ package csvtask.preprocess
 import java.time.LocalDate
 
 import akka.stream.scaladsl.Sink
-import csvtask.{AFailure, BaseSpec}
+import csvtask.BaseSpec
+import csvtask.failure.AFailure
 import org.specs2.specification.Scope
 
 import scala.collection.immutable

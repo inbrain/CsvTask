@@ -1,28 +1,32 @@
 package csvtask.process
 
 import akka.NotUsed
+import akka.stream.SourceShape
 import akka.stream.scaladsl.{Flow, GraphDSL, Merge, Partition, Source}
-import akka.stream.{Graph, SourceShape}
-import csvtask.AFailure
+import csvtask.failure.AFailure
 import csvtask.preprocess.PriceInfo
 
 case class CalcFailure(msg: String) extends AFailure
 
-object ProcessRecepies {
+object Process {
 
   def dailyPrice: Flow[PriceInfo, BigDecimal, NotUsed] = Flow[PriceInfo].map(_.close)
 
-  def dailyReturn: Flow[PriceInfo, BigDecimal, NotUsed] = {
-    dailyPrice.scan(Return(None, None)) { (acc, next) ⇒
-      val calc = acc.fut.map(fut ⇒ PriceMath.dailyReturn(fut, next))
-      Return(Some(next), calc)
-    }.
-      filter(_.calc.isDefined).
-      map(_.calc.get)
+  def dailyReturn: Flow[PriceInfo, BigDecimal, NotUsed] = dailyPrice.scan(Return(None, None)) { (acc, next) ⇒
+    val calc = acc.fut.map(PriceMath.dailyReturn(_, next))
+    Return(Some(next), calc)
+  }.collect {
+    case Return(_, Some(calc)) ⇒ calc
+  }
+
+  def periodMean: Flow[PriceInfo, BigDecimal, NotUsed] = dailyPrice.fold(Option.empty[Mean]) {(acc, next) ⇒
+    acc.map(x ⇒ Mean(x.total + next, x.num + 1)).orElse(Some(Mean(next, 1)))
+  }.collect {
+    case Some(mean) ⇒ PriceMath.totalMean(mean.total, mean.num)
   }
 
   /**
-    * Allows for application of a flow that is written without invalid input handligng to the source emits validated
+    * Allows for application of a flow that is written without invalid input handling to the source that emits validated
     * output
     */
   def applyFlow(source: Source[Either[AFailure, PriceInfo], NotUsed],
@@ -40,13 +44,15 @@ object ProcessRecepies {
       val partition = b.add(Partition[Either[AFailure, PriceInfo]](2, (x) ⇒ if (x.isLeft) 0 else 1))
       val merge = b.add(Merge[Either[AFailure, BigDecimal]](2))
 
-      gen.out ~> partition.in
-      partition.out(0) ~> repackLeft ~> merge.in(0)
-      partition.out(1) ~> cleanser ~> transformer ~> repackRight ~> merge.in(1)
+      gen.out          ~> partition.in
+      partition.out(0) ~> repackLeft    ~> merge.in(0)
+      partition.out(1) ~> cleanser      ~> transformer ~> repackRight ~> merge.in(1)
 
       SourceShape(merge.out)
     }
   )
 
   private case class Return(fut: Option[BigDecimal], calc: Option[BigDecimal])
+  private case class Mean(total: BigDecimal, num: Long)
+
 }

@@ -6,6 +6,7 @@ import akka.stream.{ActorMaterializer, scaladsl}
 import akka.stream.scaladsl.Source
 import org.specs2.mutable.Specification
 
+//noinspection TypeAnnotation
 class BaseSpec extends Specification{
   implicit val ac = TestInit.ac
   implicit val mat = TestInit.mat
@@ -19,10 +20,9 @@ class BaseSpec extends Specification{
     }
 }
 
+//noinspection TypeAnnotation
 object TestInit {
   val ac = ActorSystem("testSystem")
   val mat = ActorMaterializer.create(ac)
   val ec = ac.dispatcher
-
-
 }
