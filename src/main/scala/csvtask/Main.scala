@@ -1,28 +1,55 @@
 package csvtask
 
-import akka.NotUsed
 import akka.actor.ActorSystem
+import akka.actor.FSM.Failure
 import akka.stream.ActorMaterializer
-import akka.stream.scaladsl.GraphDSL
+import akka.stream.scaladsl.Sink
 import csvtask.connector.Connector
 import csvtask.preprocess.Preprocess
+import csvtask.process.Process
 
-import scala.io.Source
+import scala.util
+import scala.util.{Success, Try}
 
 //noinspection TypeAnnotation
-class Main {
-  implicit val ac = ActorSystem("testSystem")
-  implicit val mat = ActorMaterializer.create(ac)
-  implicit val ec = ac.dispatcher
+object Main {
 
-  val connector = new Connector()
+  def main(args: Array[String]): Unit = {
+    implicit val ac = ActorSystem("testSystem")
+    implicit val mat = ActorMaterializer.create(ac)
+    implicit val ec = ac.dispatcher
 
-
-  def sampleLogic(source: Source[]) = GraphDSL.create() { implicit b: GraphDSL.Builder[NotUsed] ⇒
-    import GraphDSL.Implicits._
+    val connector = new Connector()
 
 
+    def validateArgLength: Either[String, Unit] =
+      if (args.length != 1) Left("Wrong number of arguments") else Right(())
+
+    def readChoice: Either[String, Int] =
+      Try(args(0).toInt).fold(_ ⇒ Left(s"${args(0)} is not a number"), x ⇒ Right(x))
+
+    def validateNumber(opt: Int): Either[String, Unit] =
+      if(opt < 1 || opt > 3) Left("Argument should be 1, 2 or 3") else Right(())
+
+
+    val opChoice = Map(1 → Process.dailyPrice, 2 → Process.dailyReturn, 3 → Process.periodMean)
+
+    val res = for {
+      _ ← validateArgLength
+      opt ← readChoice
+      _ ← validateNumber(opt)
+    } yield  {
+      val preprocessedSource = connector.priceStream("GOOG").via(Preprocess.preprocess)
+      Process.applyFlow(preprocessedSource, opChoice(opt)).runWith(Sink.foreach(x ⇒ println(x)))
+    }
+
+
+
+    res match {
+      case Right(x) ⇒ x.onComplete(_ ⇒ ac.terminate())
+      case Left(problem) ⇒
+        println(problem)
+        ac.terminate()
+    }
   }
-
-  connector.priceStream("GOOG").via(Preprocess.preprocess).
 }
