@@ -33,6 +33,7 @@ object PriceInfo {
     else {
       for {
         date   ← parseDate(parts(0))
+        // Hardcoded CSV indexes could lead to incorrect behavior. Consider using header line for mapping.
         open   ← parseDouble(parts(1), "Open")
         high   ← parseDouble(parts(2), "High")
         low    ← parseDouble(parts(3), "Low")

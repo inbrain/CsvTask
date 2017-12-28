@@ -9,9 +9,12 @@ import akka.stream.scaladsl.{Framing, Source}
 import akka.util.ByteString
 
 class Connector(implicit actorSystem: ActorSystem, actorMaterializer: ActorMaterializer) {
+  // ActorSystem::dispatcher is implicit, so import actorSystem.dispatcher is enough
   private implicit val ec = actorSystem.dispatcher
   private val separator = "\n"
   private def pricesURL(ticker: String) =
+    // In general one should use URLEncoder.encode for Url concatenation.
+    // Even if you don't expect "interesting" parameters right now it's just a code smell.
     s"https://finance.google.com/finance/historical?q=NASDAQ:$ticker&output=csv"
 
   /**
